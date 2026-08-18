@@ -1,12 +1,11 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { CalendarClock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -56,6 +55,33 @@ function AuthPage() {
     defaultValues: { fullName: "", email: "", password: "" },
   });
 
+  useEffect(() => {
+    let mounted = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (mounted && data.session) {
+        void router.navigate({ to: "/dashboard" });
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (
+        mounted &&
+        session &&
+        (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION")
+      ) {
+        void router.navigate({ to: "/dashboard" });
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
+
   async function onSubmit(values: FormValues) {
     setBusy(true);
     try {
@@ -91,15 +117,19 @@ function AuthPage() {
   }
 
   async function signInWithGoogle() {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
-      toast.error("Google sign-in failed");
-      return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth`,
+        },
+      });
+      if (error) throw error;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Google sign-in failed");
+      setBusy(false);
     }
-    if (result.redirected) return;
-    await router.navigate({ to: "/dashboard" });
   }
 
   return (
@@ -122,7 +152,7 @@ function AuthPage() {
             </TabsList>
           </Tabs>
 
-          <Button variant="outline" className="w-full" onClick={signInWithGoogle}>
+          <Button variant="outline" className="w-full" onClick={signInWithGoogle} disabled={busy}>
             Continue with Google
           </Button>
 
