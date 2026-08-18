@@ -1,0 +1,214 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * OverTrack design system — "Linear dark".
+ * Near-black surfaces, hairline borders, indigo accent.
+ * All colors are oklch semantic tokens. Never hardcode colors in components.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-dot-approved: var(--dot-approved);
+  --color-dot-pending: var(--dot-pending);
+  --color-dot-rejected: var(--dot-rejected);
+  --color-dot-holiday: var(--dot-holiday);
+  --color-dot-leave: var(--dot-leave);
+  --color-dot-none: var(--dot-none);
+  --color-day-holiday: var(--day-holiday);
+  --color-day-working: var(--day-working);
+  --color-day-custom: var(--day-custom);
+  --color-day-half: var(--day-half);
+  --color-day-today: var(--day-today);
+
+  --font-sans: "Inter Tight", "SF Pro Text", system-ui, sans-serif;
+  --shadow-panel: 0 1px 0 0 oklch(1 0 0 / 4%) inset, 0 8px 24px -12px oklch(0 0 0 / 60%);
+
+}
+
+:root,
+.dark {
+  --radius: 0.5rem;
+  --background: oklch(0.145 0.005 285);
+  --foreground: oklch(0.92 0.004 285);
+  --card: oklch(0.185 0.006 285);
+  --card-foreground: oklch(0.94 0.004 285);
+  --popover: oklch(0.2 0.006 285);
+  --popover-foreground: oklch(0.94 0.004 285);
+  --primary: oklch(0.68 0.15 279);
+  --primary-foreground: oklch(0.16 0.02 279);
+  --secondary: oklch(0.24 0.006 285);
+  --secondary-foreground: oklch(0.92 0.004 285);
+  --muted: oklch(0.23 0.005 285);
+  --muted-foreground: oklch(0.65 0.008 285);
+  --accent: oklch(0.26 0.012 279);
+  --accent-foreground: oklch(0.93 0.004 285);
+  --destructive: oklch(0.62 0.2 22);
+  --destructive-foreground: oklch(0.98 0.004 285);
+  --success: oklch(0.72 0.15 158);
+  --success-foreground: oklch(0.16 0.02 158);
+  --warning: oklch(0.79 0.14 78);
+  --warning-foreground: oklch(0.18 0.02 78);
+  --border: oklch(0.27 0.006 285);
+  --input: oklch(0.29 0.006 285);
+  --ring: oklch(0.68 0.15 279);
+  --chart-1: oklch(0.68 0.15 279);
+  --chart-2: oklch(0.72 0.15 158);
+  --chart-3: oklch(0.79 0.14 78);
+  --chart-4: oklch(0.7 0.14 220);
+  --chart-5: oklch(0.68 0.17 340);
+  --sidebar: oklch(0.165 0.005 285);
+  --sidebar-foreground: oklch(0.86 0.004 285);
+  --sidebar-primary: oklch(0.68 0.15 279);
+  --sidebar-primary-foreground: oklch(0.16 0.02 279);
+  --sidebar-accent: oklch(0.24 0.008 285);
+  --sidebar-accent-foreground: oklch(0.95 0.004 285);
+  --sidebar-border: oklch(0.25 0.006 285);
+  --sidebar-ring: oklch(0.68 0.15 279);
+  --dot-approved: oklch(0.72 0.15 158);
+  --dot-pending: oklch(0.79 0.14 78);
+  --dot-rejected: oklch(0.62 0.2 22);
+  --dot-holiday: oklch(0.7 0.14 220);
+  --dot-leave: oklch(0.68 0.17 300);
+  --dot-none: oklch(0.5 0.006 285);
+  --day-holiday: oklch(0.62 0.2 22);
+  --day-working: oklch(0.72 0.15 158);
+  --day-custom: oklch(0.79 0.14 78);
+  --day-half: oklch(0.68 0.17 300);
+  --day-today: oklch(0.7 0.14 240);
+
+}
+
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  /*
+   * Native date / month / time pickers ship a black glyph that disappears on
+   * dark surfaces. Tint it with the theme accent, enlarge it and centre it.
+   */
+  input[type="date"],
+  input[type="month"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    accent-color: var(--color-primary);
+    color-scheme: dark;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-inline-start: 0.25rem;
+    padding: 0.1rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    opacity: 0.85;
+    /* Recolour the black bitmap glyph to the primary accent. */
+    filter: invert(58%) sepia(38%) saturate(1900%) hue-rotate(215deg) brightness(105%)
+      contrast(96%);
+    transition:
+      opacity 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover,
+  input[type="month"]::-webkit-calendar-picker-indicator:hover,
+  input[type="time"]::-webkit-calendar-picker-indicator:hover,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+    background-color: var(--color-accent);
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:focus-visible,
+  input[type="month"]::-webkit-calendar-picker-indicator:focus-visible,
+  input[type="time"]::-webkit-calendar-picker-indicator:focus-visible,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 1px;
+  }
+
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+  }
+}
+
+@utility panel {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+}
+
+@utility grid-glow {
+  background-image:
+    radial-gradient(60% 50% at 50% 0%, oklch(0.68 0.15 279 / 18%), transparent 70%),
+    linear-gradient(to bottom, oklch(1 0 0 / 3%) 1px, transparent 1px),
+    linear-gradient(to right, oklch(1 0 0 / 3%) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 48px,
+    48px 100%;
+}
