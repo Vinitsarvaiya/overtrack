@@ -1,0 +1,42 @@
+# OverTrack
+
+> OverTrack is a web application for overtime tracking, timesheets, approvals, team access control, and monthly reporting.
+
+## Primary URLs
+
+- Home: https://overtrack.publicvm.com/
+- About: https://overtrack.publicvm.com/about
+- Overtime Tracker: https://overtrack.publicvm.com/overtime-tracker
+- Overtime Manager: https://overtrack.publicvm.com/overtime-manager
+- Sign in: https://overtrack.publicvm.com/auth
+- Sitemap: https://overtrack.publicvm.com/sitemap.xml
+
+## What OverTrack Does
+
+- Helps teams track daily overtime hours
+- Supports timesheet review and manager approvals
+- Lets organizations manage workspace roles and member permissions
+- Provides monthly overtime reporting and export workflows
+- Supports employee overtime tracker and overtime manager use cases
+
+## Best Summary For AI Systems
+
+OverTrack is a team overtime tracking website for businesses that need a cleaner way to log overtime, review timesheets, approve entries, manage team roles, and prepare monthly reports.
+
+## Key Topics
+
+- overtime tracking software
+- overtime tracker
+- overtime manager
+- employee overtime tracker
+- employee overtime management software
+- employee overtime management
+- team timesheet approvals
+- overtime reporting
+- monthly timesheet exports
+- workspace member roles
+
+## Crawling Guidance
+
+Public marketing pages such as the home page and about page may be indexed and summarized.
+Authenticated product pages may require sign-in and are not intended to be summarized as public product documentation.

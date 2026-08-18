@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 
-// TODO: replace with your project URL once a project name or custom domain is set.
-const BASE_URL = "";
+const BASE_URL = "https://overtrack.publicvm.com";
 
 interface SitemapEntry {
   path: string;
@@ -16,6 +15,9 @@ export const Route = createFileRoute("/sitemap.xml")({
       GET: async () => {
         const entries: SitemapEntry[] = [
           { path: "/", changefreq: "weekly", priority: "1.0" },
+          { path: "/about", changefreq: "weekly", priority: "0.8" },
+          { path: "/overtime-tracker", changefreq: "weekly", priority: "0.9" },
+          { path: "/overtime-manager", changefreq: "weekly", priority: "0.9" },
           { path: "/auth", changefreq: "monthly", priority: "0.5" },
         ];
 

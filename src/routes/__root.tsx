@@ -1,18 +1,24 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
-  Outlet,
+  HeadContent,
   Link,
+  Outlet,
+  Scripts,
   createRootRouteWithContext,
   useRouter,
-  HeadContent,
-  Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { Toaster } from "sonner";
 
-
-import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import appCss from "../styles.css?url";
+
+const SITE_URL = "https://overtrack.publicvm.com";
+const SITE_NAME = "OverTrack";
+const DEFAULT_TITLE = "OverTrack | Overtime Tracking for Teams";
+const DEFAULT_DESCRIPTION =
+  "Track overtime, review timesheets, manage team access, and export monthly reports with OverTrack.";
+const SOCIAL_IMAGE_URL = `${SITE_URL}/og-image.svg`;
 
 function NotFoundComponent() {
   return (
@@ -39,6 +45,7 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
@@ -79,30 +86,40 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "OverTrack — Team overtime tracking that adds up" },
+      { title: DEFAULT_TITLE },
+      { name: "description", content: DEFAULT_DESCRIPTION },
       {
-        name: "description",
-        content: "Log daily overtime, approve timesheets and export monthly reports. Built for teams that need accurate hours, not spreadsheets.",
+        name: "robots",
+        content: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
       },
-      { property: "og:title", content: "OverTrack — Team overtime tracking that adds up" },
-      {
-        property: "og:description",
-        content: "Log daily overtime, approve timesheets and export monthly reports. Built for teams that need accurate hours, not spreadsheets.",
-      },
+      { name: "author", content: SITE_NAME },
+      { name: "application-name", content: SITE_NAME },
+      { name: "apple-mobile-web-app-title", content: SITE_NAME },
+      { name: "theme-color", content: "#0d9488" },
+      { name: "format-detection", content: "telephone=no" },
+      { property: "og:site_name", content: SITE_NAME },
+      { property: "og:title", content: DEFAULT_TITLE },
+      { property: "og:description", content: DEFAULT_DESCRIPTION },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: SITE_URL },
+      { property: "og:locale", content: "en_US" },
+      { property: "og:image", content: SOCIAL_IMAGE_URL },
+      { property: "og:image:alt", content: "OverTrack overtime dashboard metadata preview" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "OverTrack — Team overtime tracking that adds up" },
-      { name: "twitter:description", content: "Log daily overtime, approve timesheets and export monthly reports. Built for teams that need accurate hours, not spreadsheets." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a538e946-b025-4893-bb65-445dd3ca2d76/id-preview-2d55e7b5--f14d019a-dcfe-468f-82ea-0660208ea0d6.lovable.app-1785305855566.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a538e946-b025-4893-bb65-445dd3ca2d76/id-preview-2d55e7b5--f14d019a-dcfe-468f-82ea-0660208ea0d6.lovable.app-1785305855566.png" },
+      { name: "twitter:title", content: DEFAULT_TITLE },
+      { name: "twitter:description", content: DEFAULT_DESCRIPTION },
+      { name: "twitter:image", content: SOCIAL_IMAGE_URL },
+      { name: "twitter:image:alt", content: "OverTrack overtime dashboard metadata preview" },
     ],
-
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "stylesheet", href: appCss },
+      { rel: "canonical", href: SITE_URL },
+      { rel: "icon", href: "/icon.svg", type: "image/svg+xml" },
+      { rel: "alternate icon", href: "/icon.svg", type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.svg" },
+      { rel: "manifest", href: "/site.webmanifest" },
     ],
   }),
   shellComponent: RootShell,
@@ -130,10 +147,8 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster position="top-right" richColors />
     </QueryClientProvider>
   );
 }
-

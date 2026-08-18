@@ -11,7 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as OvertimeManagerRouteImport } from './routes/overtime-manager'
+import { Route as OvertimeTrackerRouteImport } from './routes/overtime-tracker'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -29,9 +32,24 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OvertimeManagerRoute = OvertimeManagerRouteImport.update({
+  id: '/overtime-manager',
+  path: '/overtime-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OvertimeTrackerRoute = OvertimeTrackerRouteImport.update({
+  id: '/overtime-tracker',
+  path: '/overtime-tracker',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -72,7 +90,10 @@ const AuthenticatedTimesheetRoute = AuthenticatedTimesheetRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/overtime-manager': typeof OvertimeManagerRoute
+  '/overtime-tracker': typeof OvertimeTrackerRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -83,7 +104,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/overtime-manager': typeof OvertimeManagerRoute
+  '/overtime-tracker': typeof OvertimeTrackerRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -96,7 +120,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/overtime-manager': typeof OvertimeManagerRoute
+  '/overtime-tracker': typeof OvertimeTrackerRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -109,7 +136,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/auth'
+    | '/overtime-manager'
+    | '/overtime-tracker'
     | '/sitemap.xml'
     | '/calendar'
     | '/dashboard'
@@ -120,7 +150,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/auth'
+    | '/overtime-manager'
+    | '/overtime-tracker'
     | '/sitemap.xml'
     | '/calendar'
     | '/dashboard'
@@ -132,7 +165,10 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/about'
     | '/auth'
+    | '/overtime-manager'
+    | '/overtime-tracker'
     | '/sitemap.xml'
     | '/_authenticated/calendar'
     | '/_authenticated/dashboard'
@@ -145,7 +181,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AboutRoute: typeof AboutRoute
   AuthRoute: typeof AuthRoute
+  OvertimeManagerRoute: typeof OvertimeManagerRoute
+  OvertimeTrackerRoute: typeof OvertimeTrackerRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
 
@@ -165,11 +204,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/overtime-manager': {
+      id: '/overtime-manager'
+      path: '/overtime-manager'
+      fullPath: '/overtime-manager'
+      preLoaderRoute: typeof OvertimeManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/overtime-tracker': {
+      id: '/overtime-tracker'
+      path: '/overtime-tracker'
+      fullPath: '/overtime-tracker'
+      preLoaderRoute: typeof OvertimeTrackerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sitemap.xml': {
@@ -248,7 +308,10 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AboutRoute: AboutRoute,
   AuthRoute: AuthRoute,
+  OvertimeManagerRoute: OvertimeManagerRoute,
+  OvertimeTrackerRoute: OvertimeTrackerRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport

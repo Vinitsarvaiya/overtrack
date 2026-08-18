@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-labelledby="title desc">
+  <title id="title">OverTrack Apple Touch Icon</title>
+  <desc id="desc">Rounded indigo square with a clock face and upward trend line.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#151825" />
+      <stop offset="100%" stop-color="#23283b" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#9f7aea" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="40" fill="url(#bg)" />
+  <rect x="12" y="12" width="156" height="156" rx="32" fill="none" stroke="#ffffff14" />
+  <circle cx="90" cy="90" r="40" fill="none" stroke="#f5f3ff" stroke-width="10" />
+  <path d="M90 67v27l19 13" fill="none" stroke="#f5f3ff" stroke-linecap="round" stroke-linejoin="round" stroke-width="10" />
+  <path d="M35 127l25-20 19 11 34-37 32 13" fill="none" stroke="url(#accent)" stroke-linecap="round" stroke-linejoin="round" stroke-width="10" />
+</svg>

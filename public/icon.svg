@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">OverTrack Icon</title>
+  <desc id="desc">Rounded indigo square with a clock face and upward trend line.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#151825" />
+      <stop offset="100%" stop-color="#23283b" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#9f7aea" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)" />
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="none" stroke="#ffffff14" />
+  <circle cx="64" cy="64" r="30" fill="none" stroke="#f5f3ff" stroke-width="8" />
+  <path d="M64 46v20l14 10" fill="none" stroke="#f5f3ff" stroke-linecap="round" stroke-linejoin="round" stroke-width="8" />
+  <path d="M26 92l18-14 14 8 24-26 20 8" fill="none" stroke="url(#accent)" stroke-linecap="round" stroke-linejoin="round" stroke-width="8" />
+</svg>
