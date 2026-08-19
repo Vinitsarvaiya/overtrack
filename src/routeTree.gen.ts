@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as HealthRouteImport } from './routes/health'
 import { Route as OvertimeManagerRouteImport } from './routes/overtime-manager'
 import { Route as OvertimeTrackerRouteImport } from './routes/overtime-tracker'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
@@ -40,6 +41,11 @@ const AboutRoute = AboutRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OvertimeManagerRoute = OvertimeManagerRouteImport.update({
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/health': typeof HealthRoute
   '/overtime-manager': typeof OvertimeManagerRoute
   '/overtime-tracker': typeof OvertimeTrackerRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/health': typeof HealthRoute
   '/overtime-manager': typeof OvertimeManagerRoute
   '/overtime-tracker': typeof OvertimeTrackerRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/health': typeof HealthRoute
   '/overtime-manager': typeof OvertimeManagerRoute
   '/overtime-tracker': typeof OvertimeTrackerRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/auth'
+    | '/health'
     | '/overtime-manager'
     | '/overtime-tracker'
     | '/sitemap.xml'
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/auth'
+    | '/health'
     | '/overtime-manager'
     | '/overtime-tracker'
     | '/sitemap.xml'
@@ -167,6 +178,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/about'
     | '/auth'
+    | '/health'
     | '/overtime-manager'
     | '/overtime-tracker'
     | '/sitemap.xml'
@@ -183,6 +195,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AboutRoute: typeof AboutRoute
   AuthRoute: typeof AuthRoute
+  HealthRoute: typeof HealthRoute
   OvertimeManagerRoute: typeof OvertimeManagerRoute
   OvertimeTrackerRoute: typeof OvertimeTrackerRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
@@ -216,6 +229,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/overtime-manager': {
@@ -310,6 +330,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AboutRoute: AboutRoute,
   AuthRoute: AuthRoute,
+  HealthRoute: HealthRoute,
   OvertimeManagerRoute: OvertimeManagerRoute,
   OvertimeTrackerRoute: OvertimeTrackerRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
