@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { MonthPicker } from "@/components/ui/date-pickers";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/table";
 import { EntryDialog } from "@/components/entry-dialog";
 import { EntryHistoryDrawer } from "@/components/entry-history-drawer";
+import { RejectEntryDialog } from "@/components/reject-entry-dialog";
 import { can, useWorkspace } from "@/components/workspace-provider";
 import {
   useCalendarDays,
@@ -102,7 +103,7 @@ function TimesheetPage() {
   const { data: members = [] } = useWorkspaceMembers(workspace?.id);
   const remove = useDeleteEntry(workspace?.id);
   const workflow = useEntryWorkflow(workspace);
-  const permissions = can(role, myPermissions);
+  const permissions = can(role, myPermissions, workspace);
 
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [tag, setTag] = useState("all");
@@ -111,6 +112,7 @@ function TimesheetPage() {
   const [editing, setEditing] = useState<Entry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyEntry, setHistoryEntry] = useState<Entry | null>(null);
+  const [rejectingEntry, setRejectingEntry] = useState<Entry | null>(null);
 
   const { data: calendarDays = [] } = useCalendarDays(workspace?.id);
   const dayMap = useMemo(() => calendarDayMap(calendarDays), [calendarDays]);
@@ -159,14 +161,8 @@ function TimesheetPage() {
 
   function run(entry: Entry, action: "submit" | "approve" | "reject" | "reopen") {
     if (!user) return;
-    let reason: string | undefined;
-    if (action === "reject") {
-      const input = window.prompt("Reason for rejection");
-      if (!input?.trim()) return toast.error("A rejection reason is required");
-      reason = input.trim();
-    }
     workflow.mutate(
-      { entry, action, reason, actorId: user.id },
+      { entry, action, actorId: user.id },
       {
         onSuccess: () =>
           toast.success(
@@ -254,7 +250,7 @@ function TimesheetPage() {
 
       <Card className="print:hidden">
         <CardContent className="grid gap-3 pt-6 sm:grid-cols-2 lg:grid-cols-4">
-          <Input type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+          <MonthPicker value={month} onChange={setMonth} ariaLabel="Timesheet month" />
           <Select value={tag} onValueChange={setTag}>
             <SelectTrigger>
               <SelectValue placeholder="Tag" />
@@ -406,7 +402,7 @@ function TimesheetPage() {
                               size="icon"
                               variant="ghost"
                               aria-label="Reject"
-                              onClick={() => run(entry, "reject")}
+                              onClick={() => setRejectingEntry(entry)}
                             >
                               <X className="size-4" />
                             </Button>
@@ -518,6 +514,26 @@ function TimesheetPage() {
         entry={historyEntry}
         onOpenChange={(open) => !open && setHistoryEntry(null)}
         nameFor={nameFor}
+      />
+      <RejectEntryDialog
+        open={Boolean(rejectingEntry)}
+        onOpenChange={(open) => {
+          if (!open) setRejectingEntry(null);
+        }}
+        onConfirm={(reason) => {
+          if (!rejectingEntry || !user) return;
+          workflow.mutate(
+            { entry: rejectingEntry, action: "reject", reason, actorId: user.id },
+            {
+              onSuccess: () => {
+                toast.success("Entry rejected");
+                setRejectingEntry(null);
+              },
+              onError: (error) =>
+                toast.error(error instanceof Error ? error.message : "Action failed"),
+            },
+          );
+        }}
       />
     </div>
   );

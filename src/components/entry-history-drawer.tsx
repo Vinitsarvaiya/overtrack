@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Paperclip } from "lucide-react";
 import {
   Sheet,
@@ -16,9 +16,127 @@ import { STATUS_LABELS } from "@/lib/overtime";
 const ACTION_LABELS: Record<string, string> = {
   created: "Created",
   updated: "Updated",
+  edited: "Edited",
   status_changed: "Status changed",
+  rejected: "Rejected",
   deleted: "Deleted",
 };
+
+const FIELD_LABELS: Record<string, string> = {
+  status: "Status",
+  start_time: "Start time",
+  end_time: "End time",
+  break_minutes: "Break minutes",
+  entry_date: "Date",
+  notes: "Notes",
+  tags: "Tags",
+  reason: "Reason",
+};
+
+function historyActionLabel(action: string, field: string | null, nextValue: string | null) {
+  if (action === "status_changed" && field === "status") {
+    if (nextValue === "approved") return "Approved";
+    if (nextValue === "rejected") return "Rejected";
+    if (nextValue === "submitted") return "Submitted";
+    if (nextValue === "reopened") return "Reopened";
+  }
+
+  if (action === "rejected" && field === "reason") {
+    return "Rejection reason";
+  }
+
+  return ACTION_LABELS[action] ?? action;
+}
+
+function displayValue(field: string | null, value: string | null) {
+  if (!value) return "-";
+  if (field === "status") return STATUS_LABELS[value] ?? value;
+  return value;
+}
+
+function syntheticHistory(entry: Entry, fallbackActorId: string | null) {
+  const items: Array<{
+    id: string;
+    action: string;
+    field: string | null;
+    old_value: string | null;
+    new_value: string | null;
+    actor_id: string | null;
+    created_at: string;
+  }> = [];
+
+  items.push({
+    id: `${entry.id}-created`,
+    action: "created",
+    field: "status",
+    old_value: null,
+    new_value: entry.status,
+    actor_id: fallbackActorId,
+    created_at: entry.created_at,
+  });
+
+  if (entry.submitted_at) {
+    items.push({
+      id: `${entry.id}-submitted`,
+      action: "status_changed",
+      field: "status",
+      old_value: "draft",
+      new_value: "submitted",
+      actor_id: fallbackActorId,
+      created_at: entry.submitted_at,
+    });
+  }
+
+  if (entry.approved_at) {
+    items.push({
+      id: `${entry.id}-approved`,
+      action: "status_changed",
+      field: "status",
+      old_value: entry.submitted_at ? "submitted" : "draft",
+      new_value: "approved",
+      actor_id: entry.approved_by,
+      created_at: entry.approved_at,
+    });
+  }
+
+  if (entry.status === "rejected") {
+    items.push({
+      id: `${entry.id}-rejected`,
+      action: "status_changed",
+      field: "status",
+      old_value: entry.approved_at ? "approved" : entry.submitted_at ? "submitted" : "draft",
+      new_value: "rejected",
+      actor_id: fallbackActorId,
+      created_at: entry.updated_at,
+    });
+
+    if (entry.rejection_reason) {
+      items.push({
+        id: `${entry.id}-rejection-reason`,
+        action: "rejected",
+        field: "reason",
+        old_value: null,
+        new_value: entry.rejection_reason,
+        actor_id: fallbackActorId,
+        created_at: entry.updated_at,
+      });
+    }
+  }
+
+  if (entry.status === "reopened") {
+    items.push({
+      id: `${entry.id}-reopened`,
+      action: "status_changed",
+      field: "status",
+      old_value: entry.approved_at ? "approved" : "rejected",
+      new_value: "reopened",
+      actor_id: fallbackActorId,
+      created_at: entry.updated_at,
+    });
+  }
+
+  return items.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
 
 /** Full audit timeline for an entry. Rendered only for owners/admins. */
 export function EntryHistoryDrawer({
@@ -32,15 +150,22 @@ export function EntryHistoryDrawer({
 }) {
   const { data: history = [], isLoading } = useEntryHistory(entry?.id);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const resolvedHistory = useMemo(() => {
+    if (!entry) return [];
+    if (history.length > 0) return history;
+    return syntheticHistory(entry, entry.approved_by ?? entry.user_id);
+  }, [entry, history]);
 
   useEffect(() => {
     let active = true;
     setFileUrl(null);
+
     if (entry?.attachment_path) {
       void attachmentUrl(entry.attachment_path).then((url) => {
         if (active) setFileUrl(url);
       });
     }
+
     return () => {
       active = false;
     };
@@ -78,28 +203,37 @@ export function EntryHistoryDrawer({
                 <Skeleton key={index} className="h-12" />
               ))}
             </div>
-          ) : history.length === 0 ? (
+          ) : resolvedHistory.length === 0 ? (
             <p className="text-sm text-muted-foreground">No history recorded yet.</p>
           ) : (
             <ol className="relative space-y-4 border-l border-border pl-4">
-              {history.map((record) => (
-                <li key={record.id} className="space-y-1">
+              {resolvedHistory.map((record) => (
+                <li key={record.id} className="relative space-y-1">
                   <span className="absolute -left-[5px] mt-1.5 size-2 rounded-full bg-primary" />
+
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">
-                      {ACTION_LABELS[record.action] ?? record.action}
+                      {historyActionLabel(record.action, record.field, record.new_value)}
                     </Badge>
                     {record.field ? (
-                      <span className="text-sm font-medium">{record.field}</span>
+                      <span className="text-sm font-medium">
+                        {FIELD_LABELS[record.field] ?? record.field}
+                      </span>
                     ) : null}
                   </div>
+
                   {record.old_value || record.new_value ? (
                     <p className="text-sm text-muted-foreground">
-                      <span className="line-through">{record.old_value ?? "—"}</span>
-                      {" → "}
-                      <span className="text-foreground">{record.new_value ?? "—"}</span>
+                      <span className="line-through">
+                        {displayValue(record.field, record.old_value)}
+                      </span>
+                      {" -> "}
+                      <span className="text-foreground">
+                        {displayValue(record.field, record.new_value)}
+                      </span>
                     </p>
                   ) : null}
+
                   <p className="text-xs text-muted-foreground">
                     {record.actor_id ? nameFor(record.actor_id) : "System"} ·{" "}
                     {new Date(record.created_at).toLocaleString()}

@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { EntryDialog } from "@/components/entry-dialog";
 import { MonthGrid } from "@/components/calendar/month-grid";
 import { DayDetailPanel } from "@/components/calendar/day-detail-panel";
+import { RejectEntryDialog } from "@/components/reject-entry-dialog";
 import { can, useWorkspace } from "@/components/workspace-provider";
 import { baseStandardHours } from "@/lib/working-calendar";
 import {
@@ -69,7 +70,7 @@ function CalendarPage() {
   const { data: entries = [], isLoading } = useEntries(workspace?.id);
   const { data: members = [] } = useWorkspaceMembers(workspace?.id);
   const workflow = useEntryWorkflow(workspace);
-  const permissions = can(role, myPermissions);
+  const permissions = can(role, myPermissions, workspace);
 
   const today = todayKey();
   const [year, setYear] = useState(() => new Date().getFullYear());
@@ -79,16 +80,37 @@ function CalendarPage() {
   const [selected, setSelected] = useState<string | null>(today);
   const [editing, setEditing] = useState<Entry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [rejectingEntry, setRejectingEntry] = useState<Entry | null>(null);
 
   const standard = baseStandardHours(workspace);
   const currency = workspace?.currency ?? "USD";
   const timeFormat = (workspace?.time_format as TimeFormat) ?? "24h";
-  const rates = useMemo(
+  const defaultRates = useMemo(
     () => ({
       hourly: Number(workspace?.hourly_rate ?? 0),
       overtime: Number(workspace?.overtime_hourly_rate ?? 0),
     }),
     [workspace?.hourly_rate, workspace?.overtime_hourly_rate],
+  );
+  const memberRateMap = useMemo(
+    () =>
+      new Map(
+        members.map((member) => [
+          member.user_id,
+          {
+            hourly: member.hourly_rate === null ? defaultRates.hourly : Number(member.hourly_rate),
+            overtime:
+              member.overtime_hourly_rate === null
+                ? defaultRates.overtime
+                : Number(member.overtime_hourly_rate),
+          },
+        ]),
+      ),
+    [defaultRates.hourly, defaultRates.overtime, members],
+  );
+  const resolveRates = useCallback(
+    (entry: Entry) => memberRateMap.get(entry.user_id) ?? defaultRates,
+    [defaultRates, memberRateMap],
   );
 
   const scoped = useMemo(() => {
@@ -104,8 +126,8 @@ function CalendarPage() {
   }, [entries, permissions.manageAll, user?.id, year, person, status]);
 
   const summaries = useMemo(
-    () => summarizeByDay(scoped, standard, rates),
-    [scoped, standard, rates],
+    () => summarizeByDay(scoped, standard, resolveRates),
+    [resolveRates, scoped, standard],
   );
 
   const stats = useMemo(() => {
@@ -136,14 +158,8 @@ function CalendarPage() {
   const runAction = useCallback(
     (entry: Entry, action: "approve" | "reject") => {
       if (!user) return;
-      let reason: string | undefined;
-      if (action === "reject") {
-        const input = window.prompt("Reason for rejection");
-        if (!input?.trim()) return toast.error("A rejection reason is required");
-        reason = input.trim();
-      }
       workflow.mutate(
-        { entry, action, reason, actorId: user.id },
+        { entry, action, actorId: user.id },
         {
           onSuccess: () =>
             toast.success(action === "approve" ? "Entry approved" : "Entry rejected"),
@@ -364,7 +380,7 @@ function CalendarPage() {
               canApprove={permissions.approve}
               canEdit={canEditEntry}
               onApprove={(entry) => runAction(entry, "approve")}
-              onReject={(entry) => runAction(entry, "reject")}
+              onReject={(entry) => setRejectingEntry(entry)}
               onEdit={(entry) => {
                 setEditing(entry);
                 setDialogOpen(true);
@@ -381,6 +397,26 @@ function CalendarPage() {
             if (!open) setEditing(null);
           }}
           entry={editing}
+        />
+        <RejectEntryDialog
+          open={Boolean(rejectingEntry)}
+          onOpenChange={(open) => {
+            if (!open) setRejectingEntry(null);
+          }}
+          onConfirm={(reason) => {
+            if (!rejectingEntry || !user) return;
+            workflow.mutate(
+              { entry: rejectingEntry, action: "reject", reason, actorId: user.id },
+              {
+                onSuccess: () => {
+                  toast.success("Entry rejected");
+                  setRejectingEntry(null);
+                },
+                onError: (error) =>
+                  toast.error(error instanceof Error ? error.message : "Action failed"),
+              },
+            );
+          }}
         />
       </div>
     </TooltipProvider>

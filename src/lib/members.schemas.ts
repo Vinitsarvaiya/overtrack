@@ -13,3 +13,9 @@ export const createWorkplaceSchema = z.object({
   fromWorkspaceId: z.string().uuid(),
   name: z.string().trim().min(2).max(80),
 });
+
+export const updateMemberRatesSchema = z.object({
+  memberId: z.string().uuid(),
+  hourlyRate: z.number().min(0).max(999999).nullable(),
+  overtimeHourlyRate: z.number().min(0).max(999999).nullable(),
+});

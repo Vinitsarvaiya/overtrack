@@ -58,6 +58,54 @@ export type Database = {
           },
         ]
       }
+      member_rate_history: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          field: string
+          id: string
+          member_id: string
+          new_value: string | null
+          old_value: string | null
+          workspace_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          field: string
+          id?: string
+          member_id: string
+          new_value?: string | null
+          old_value?: string | null
+          workspace_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          field?: string
+          id?: string
+          member_id?: string
+          new_value?: string | null
+          old_value?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_rate_history_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_rate_history_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       overtime_entries: {
         Row: {
           approved_at: string | null
@@ -291,7 +339,9 @@ export type Database = {
         Row: {
           created_at: string
           custom_role_id: string | null
+          hourly_rate: number | null
           id: string
+          overtime_hourly_rate: number | null
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
           workspace_id: string
@@ -299,7 +349,9 @@ export type Database = {
         Insert: {
           created_at?: string
           custom_role_id?: string | null
+          hourly_rate?: number | null
           id?: string
+          overtime_hourly_rate?: number | null
           role?: Database["public"]["Enums"]["app_role"]
           user_id: string
           workspace_id: string
@@ -307,7 +359,9 @@ export type Database = {
         Update: {
           created_at?: string
           custom_role_id?: string | null
+          hourly_rate?: number | null
           id?: string
+          overtime_hourly_rate?: number | null
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
           workspace_id?: string
@@ -366,6 +420,7 @@ export type Database = {
       }
       workspaces: {
         Row: {
+          allow_manager_rate_permissions: boolean
           allow_future_dates: boolean
           allow_multiple_entries: boolean
           allow_overtime_override: boolean
@@ -376,6 +431,7 @@ export type Database = {
           default_break_minutes: number
           enable_attachments: boolean
           enable_breaks: boolean
+          enable_member_rates: boolean
           enable_notes: boolean
           enable_overtime: boolean
           enable_standard_hours: boolean
@@ -395,6 +451,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          allow_manager_rate_permissions?: boolean
           allow_future_dates?: boolean
           allow_multiple_entries?: boolean
           allow_overtime_override?: boolean
@@ -405,6 +462,7 @@ export type Database = {
           default_break_minutes?: number
           enable_attachments?: boolean
           enable_breaks?: boolean
+          enable_member_rates?: boolean
           enable_notes?: boolean
           enable_overtime?: boolean
           enable_standard_hours?: boolean
@@ -424,6 +482,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          allow_manager_rate_permissions?: boolean
           allow_future_dates?: boolean
           allow_multiple_entries?: boolean
           allow_overtime_override?: boolean
@@ -434,6 +493,7 @@ export type Database = {
           default_break_minutes?: number
           enable_attachments?: boolean
           enable_breaks?: boolean
+          enable_member_rates?: boolean
           enable_notes?: boolean
           enable_overtime?: boolean
           enable_standard_hours?: boolean

@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-pickers";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -98,6 +99,19 @@ const APPROVAL_TOGGLES = [
   { key: "allow_reject", label: "Allow reject", hint: "Owners/admins can reject with a reason" },
 ] as const;
 
+const CURRENCY_OPTIONS = [
+  { value: "USD", label: "US Dollar ($)" },
+  { value: "EUR", label: "Euro (€)" },
+  { value: "GBP", label: "British Pound (£)" },
+  { value: "INR", label: "Indian Rupee (₹)" },
+  { value: "AED", label: "UAE Dirham (AED)" },
+  { value: "CAD", label: "Canadian Dollar (CA$)" },
+  { value: "AUD", label: "Australian Dollar (A$)" },
+  { value: "SGD", label: "Singapore Dollar (S$)" },
+  { value: "JPY", label: "Japanese Yen (¥)" },
+  { value: "CNY", label: "Chinese Yuan (¥)" },
+] as const;
+
 type Draft = {
   name: string;
   currency: string;
@@ -106,11 +120,11 @@ type Draft = {
   default_break_minutes: number;
   time_format: string;
   notes_max_length: number;
-  hourly_rate: number;
-  overtime_hourly_rate: number;
   tags: string[];
   enable_standard_hours: boolean;
   enable_breaks: boolean;
+  enable_member_rates: boolean;
+  allow_manager_rate_permissions: boolean;
   enable_notes: boolean;
   enable_attachments: boolean;
   enable_tags: boolean;
@@ -131,7 +145,7 @@ function SettingsPage() {
   const { workspace, role, user, permissions: myPermissions } = useWorkspace();
   const { data: profile } = useProfile(user?.id);
   const updateWorkspace = useUpdateWorkspace(workspace?.id);
-  const permissions = can(role, myPermissions);
+  const permissions = can(role, myPermissions, workspace);
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saved, setSaved] = useState<Draft | null>(null);
@@ -152,11 +166,11 @@ function SettingsPage() {
       default_break_minutes: workspace.default_break_minutes,
       time_format: workspace.time_format ?? "24h",
       notes_max_length: workspace.notes_max_length ?? 500,
-      hourly_rate: Number(workspace.hourly_rate ?? 0),
-      overtime_hourly_rate: Number(workspace.overtime_hourly_rate ?? 0),
       tags: workspace.tags?.length ? workspace.tags : [...DEFAULT_TAGS],
       enable_standard_hours: workspace.enable_standard_hours !== false,
       enable_breaks: workspace.enable_breaks !== false,
+      enable_member_rates: workspace.enable_member_rates !== false,
+      allow_manager_rate_permissions: Boolean(workspace.allow_manager_rate_permissions),
       enable_notes: workspace.enable_notes !== false,
       enable_attachments: workspace.enable_attachments !== false,
       enable_tags: workspace.enable_tags !== false,
@@ -219,8 +233,32 @@ function SettingsPage() {
     setError(null);
     try {
       if (workspaceDirty) {
-        // One request for every changed workspace setting.
-        await updateWorkspace.mutateAsync(draft);
+        const workspaceUpdate = {
+          name: draft.name,
+          currency: draft.currency,
+          timezone: draft.timezone,
+          standard_daily_hours: draft.standard_daily_hours,
+          default_break_minutes: draft.default_break_minutes,
+          time_format: draft.time_format === "12h" ? "12h" : "24h",
+          notes_max_length: draft.notes_max_length,
+          tags: draft.tags,
+          enable_standard_hours: draft.enable_standard_hours,
+          enable_breaks: draft.enable_breaks,
+          enable_member_rates: draft.enable_member_rates,
+          allow_manager_rate_permissions: draft.allow_manager_rate_permissions,
+          enable_notes: draft.enable_notes,
+          enable_attachments: draft.enable_attachments,
+          enable_tags: draft.enable_tags,
+          allow_multiple_entries: draft.allow_multiple_entries,
+          allow_future_dates: draft.allow_future_dates,
+          enable_overtime: draft.enable_overtime,
+          allow_overtime_override: draft.allow_overtime_override,
+          require_approval: draft.require_approval,
+          lock_after_approval: draft.lock_after_approval,
+          allow_reopen: draft.allow_reopen,
+          allow_reject: draft.allow_reject,
+        };
+        await updateWorkspace.mutateAsync(workspaceUpdate);
         setSaved(draft);
       }
       if (profileDirty && user) {
@@ -252,7 +290,7 @@ function SettingsPage() {
     return <p className="text-sm text-muted-foreground">Loading settings…</p>;
   }
 
-  const editable = permissions.manageAll;
+  const editable = permissions.editSettings;
   const standardOn = draft.enable_standard_hours;
 
   const saveBar = (
@@ -315,11 +353,22 @@ function SettingsPage() {
             />
           </Field>
           <Field label="Currency">
-            <Input
+            <Select
               value={draft.currency}
               disabled={!editable}
-              onChange={(event) => set("currency", event.target.value)}
-            />
+              onValueChange={(value) => set("currency", value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
           <Field label="Timezone">
             <Input
@@ -343,16 +392,6 @@ function SettingsPage() {
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Hourly rate (normal hours)">
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              disabled={!editable}
-              value={draft.hourly_rate}
-              onChange={(event) => set("hourly_rate", Number(event.target.value))}
-            />
-          </Field>
           <Field label="Max notes length">
             <Input
               type="number"
@@ -375,49 +414,66 @@ function SettingsPage() {
             zero.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <ToggleRow
-            label="Enable standard working hours"
-            hint="Calculate overtime automatically"
-            checked={standardOn}
-            disabled={!editable}
-            onChange={(value) => set("enable_standard_hours", value)}
-          />
-          {standardOn ? (
-            <>
-              <Field label="Standard working hours per day">
-                <Input
-                  type="number"
-                  step="0.5"
-                  min={0}
-                  max={24}
-                  disabled={!editable}
-                  value={draft.standard_daily_hours}
-                  onChange={(event) => set("standard_daily_hours", Number(event.target.value))}
-                />
-              </Field>
-              <Field label="Hourly rate (overtime)">
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  disabled={!editable}
-                  value={draft.overtime_hourly_rate}
-                  onChange={(event) => set("overtime_hourly_rate", Number(event.target.value))}
-                />
-              </Field>
-              {OVERTIME_TOGGLES.map((item) => (
-                <ToggleRow
-                  key={item.key}
-                  label={item.label}
-                  hint={item.hint}
-                  checked={draft[item.key]}
-                  disabled={!editable}
-                  onChange={(value) => set(item.key, value)}
-                />
-              ))}
-            </>
-          ) : null}
+        <CardContent className="space-y-4">
+          <div className="rounded-xl border border-border/70 bg-muted/10 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">Enable standard working hours</p>
+                <p className="max-w-xl text-sm text-muted-foreground">
+                  Turn this on to calculate overtime from each day&apos;s worked hours minus the
+                  standard daily target.
+                </p>
+              </div>
+              <Switch
+                checked={standardOn}
+                disabled={!editable}
+                onCheckedChange={(value) => set("enable_standard_hours", value)}
+              />
+            </div>
+
+            {standardOn ? (
+              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,240px)_1fr]">
+                <div className="rounded-lg border border-border/60 bg-background/70 p-3">
+                  <Field label="Standard hours per day">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min={0}
+                      max={24}
+                      disabled={!editable}
+                      value={draft.standard_daily_hours}
+                      onChange={(event) =>
+                        set("standard_daily_hours", Number(event.target.value))
+                      }
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {OVERTIME_TOGGLES.map((item) => (
+                    <div
+                      key={item.key}
+                      className="rounded-lg border border-border/60 bg-background/70 p-3"
+                    >
+                      <ToggleRow
+                        label={item.label}
+                        hint={item.hint}
+                        checked={draft[item.key]}
+                        disabled={!editable}
+                        onChange={(value) => set(item.key, value)}
+                        compact
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-lg border border-dashed border-border/60 bg-background/40 px-4 py-3 text-sm text-muted-foreground">
+                Overtime automation is off. Logged working time will still be tracked, but overtime
+                stays at zero unless you turn standard working hours back on.
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -437,6 +493,32 @@ function SettingsPage() {
               onChange={(value) => set(item.key, value)}
             />
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Member rates</CardTitle>
+          <CardDescription>
+            Control whether per-member hourly and overtime rates are available and whether manager
+            role permissions can use them.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <ToggleRow
+            label="Enable member rates"
+            hint="Show custom hourly and overtime rates on the Members page."
+            checked={draft.enable_member_rates}
+            disabled={!editable}
+            onChange={(value) => set("enable_member_rates", value)}
+          />
+          <ToggleRow
+            label="Allow manager rate permissions"
+            hint="Managers can view or edit rates only if their role also has the right money permissions."
+            checked={draft.allow_manager_rate_permissions}
+            disabled={!editable || !draft.enable_member_rates}
+            onChange={(value) => set("allow_manager_rate_permissions", value)}
+          />
         </CardContent>
       </Card>
 
@@ -610,7 +692,7 @@ function WorkingCalendarCard({
         {editable ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Date">
-              <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+              <DatePicker value={date} onChange={setDate} ariaLabel="Working calendar date" />
             </Field>
             <Field label="Type">
               <Select value={dayType} onValueChange={(value) => setDayType(value as DayType)}>
@@ -744,15 +826,23 @@ function ToggleRow({
   checked,
   disabled,
   onChange,
+  compact = false,
 }: {
   label: string;
   hint: string;
   checked: boolean;
   disabled?: boolean;
   onChange: (value: boolean) => void;
+  compact?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-md border border-border px-3 py-2">
+    <div
+      className={
+        compact
+          ? "flex items-start justify-between gap-3"
+          : "flex items-start justify-between gap-3 rounded-md border border-border px-3 py-2"
+      }
+    >
       <div>
         <p className="text-sm font-medium">{label}</p>
         <p className="text-xs text-muted-foreground">{hint}</p>

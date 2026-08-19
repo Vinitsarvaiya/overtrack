@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Paperclip, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Paperclip, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,14 +34,28 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  MONTH_NAMES,
+  WEEKDAY_LABELS,
+  buildMonthGrid,
+  formatDateLong,
+  todayKey,
+} from "@/lib/calendar";
+import {
   CATEGORIES,
   DEFAULT_TAGS,
   breakHours,
   formatHours,
+  formatTime,
   minuteRange,
   overtimeHours,
   rangesOverlap,
   totalHours,
+  type TimeFormat,
   workedHours,
 } from "@/lib/overtime";
 import {
@@ -77,11 +91,71 @@ const entrySchema = z.object({
 
 type EntryFormValues = z.input<typeof entrySchema>;
 
-function emptyValues(defaultBreak: number): EntryFormValues {
+const HOUR_24_OPTIONS = Array.from({ length: 24 }, (_, index) =>
+  String(index).padStart(2, "0"),
+);
+const HOUR_12_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1));
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) =>
+  String(index).padStart(2, "0"),
+);
+
+function parseTimeForStorage(value: string, format: TimeFormat): string | null {
+  const raw = value.trim();
+  if (!raw) return null;
+
+  if (format === "24h") {
+    const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
+  const match = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return null;
+  const hour12 = Number(match[1]);
+  const minute = Number(match[2]);
+  const suffix = match[3].toUpperCase();
+  if (hour12 < 1 || hour12 > 12 || minute < 0 || minute > 59) return null;
+  const hour24 = suffix === "AM" ? (hour12 === 12 ? 0 : hour12) : hour12 === 12 ? 12 : hour12 + 12;
+  return `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function decomposeTimeValue(value: string, format: TimeFormat) {
+  const parsed = parseTimeForStorage(value, format) ?? (format === "12h" ? "09:00" : "09:00");
+  const [rawHour = "09", rawMinute = "00"] = parsed.split(":");
+  const hour24 = Number(rawHour);
+
+  if (format === "24h") {
+    return {
+      hour: rawHour,
+      minute: rawMinute,
+      period: "AM" as const,
+    };
+  }
+
+  return {
+    hour: String(hour24 % 12 === 0 ? 12 : hour24 % 12),
+    minute: rawMinute,
+    period: (hour24 < 12 ? "AM" : "PM") as "AM" | "PM",
+  };
+}
+
+function composeTimeValue(
+  hour: string,
+  minute: string,
+  period: "AM" | "PM",
+  format: TimeFormat,
+) {
+  return format === "12h" ? `${hour}:${minute} ${period}` : `${hour}:${minute}`;
+}
+
+function emptyValues(defaultBreak: number, format: TimeFormat): EntryFormValues {
   return {
     entry_date: new Date().toISOString().slice(0, 10),
-    start_time: "09:00",
-    end_time: "18:00",
+    start_time: format === "12h" ? "9:00 AM" : "09:00",
+    end_time: format === "12h" ? "6:00 PM" : "18:00",
     break_minutes: defaultBreak,
     break_start: "",
     break_end: "",
@@ -103,6 +177,7 @@ export function EntryDialog({
   const { workspace, user } = useWorkspace();
   const save = useSaveEntry(workspace?.id);
   const { data: allEntries = [] } = useEntries(workspace?.id);
+  const timeFormat = (workspace?.time_format as TimeFormat) ?? "24h";
 
   const [breakMode, setBreakMode] = useState<"duration" | "range">("duration");
   const [tags, setTags] = useState<string[]>([]);
@@ -118,7 +193,7 @@ export function EntryDialog({
 
   const form = useForm<EntryFormValues>({
     resolver: zodResolver(entrySchema),
-    defaultValues: emptyValues(workspace?.default_break_minutes ?? 60),
+    defaultValues: emptyValues(workspace?.default_break_minutes ?? 60, timeFormat),
   });
 
   useEffect(() => {
@@ -126,11 +201,11 @@ export function EntryDialog({
     if (entry) {
       form.reset({
         entry_date: entry.entry_date,
-        start_time: entry.start_time.slice(0, 5),
-        end_time: entry.end_time.slice(0, 5),
+        start_time: formatTime(entry.start_time, timeFormat),
+        end_time: formatTime(entry.end_time, timeFormat),
         break_minutes: entry.break_minutes,
-        break_start: entry.break_start?.slice(0, 5) ?? "",
-        break_end: entry.break_end?.slice(0, 5) ?? "",
+        break_start: entry.break_start ? formatTime(entry.break_start, timeFormat) : "",
+        break_end: entry.break_end ? formatTime(entry.break_end, timeFormat) : "",
         category: entry.category,
         notes: entry.notes ?? "",
         overtime_override:
@@ -144,21 +219,31 @@ export function EntryDialog({
           : null,
       );
     } else {
-      form.reset(emptyValues(workspace?.default_break_minutes ?? 60));
+      form.reset(emptyValues(workspace?.default_break_minutes ?? 60, timeFormat));
       setBreakMode("duration");
       setTags([]);
       setAttachment(null);
     }
-  }, [open, entry, workspace?.default_break_minutes, form]);
+  }, [open, entry, workspace?.default_break_minutes, timeFormat, form]);
 
   const values = form.watch();
+  const normalizedStart = parseTimeForStorage(values.start_time || "", timeFormat) ?? "00:00";
+  const normalizedEnd = parseTimeForStorage(values.end_time || "", timeFormat) ?? "00:00";
+  const normalizedBreakStart =
+    breakMode === "range"
+      ? (parseTimeForStorage(values.break_start || "", timeFormat) ?? null)
+      : null;
+  const normalizedBreakEnd =
+    breakMode === "range"
+      ? (parseTimeForStorage(values.break_end || "", timeFormat) ?? null)
+      : null;
   const preview = {
     entry_date: values.entry_date,
-    start_time: values.start_time || "00:00",
-    end_time: values.end_time || "00:00",
+    start_time: normalizedStart,
+    end_time: normalizedEnd,
     break_minutes: workspace?.enable_breaks === false ? 0 : Number(values.break_minutes) || 0,
-    break_start: breakMode === "range" ? values.break_start || null : null,
-    break_end: breakMode === "range" ? values.break_end || null : null,
+    break_start: normalizedBreakStart,
+    break_end: normalizedBreakEnd,
     overtime_override:
       workspace?.allow_overtime_override && values.overtime_override !== ""
         ? Number(values.overtime_override)
@@ -190,10 +275,32 @@ export function EntryDialog({
   async function submitEntry(raw: EntryFormValues, mode: "draft" | "submit") {
     if (!workspace || !user) return;
     const parsed = entrySchema.parse(raw);
+    const startTime = parseTimeForStorage(parsed.start_time, timeFormat);
+    const endTime = parseTimeForStorage(parsed.end_time, timeFormat);
+    const parsedBreakStart = parsed.break_start
+      ? parseTimeForStorage(parsed.break_start, timeFormat)
+      : null;
+    const parsedBreakEnd = parsed.break_end
+      ? parseTimeForStorage(parsed.break_end, timeFormat)
+      : null;
+    if (!startTime || !endTime) {
+      return toast.error(
+        timeFormat === "12h"
+          ? "Use times like 9:00 AM or 6:30 PM"
+          : "Use times like 09:00 or 18:30",
+      );
+    }
+    if ((parsed.break_start && !parsedBreakStart) || (parsed.break_end && !parsedBreakEnd)) {
+      return toast.error(
+        timeFormat === "12h"
+          ? "Break times must look like 1:15 PM"
+          : "Break times must look like 13:15",
+      );
+    }
     const breaksOn = workspace.enable_breaks !== false;
-    const useRange = breaksOn && breakMode === "range" && parsed.break_start && parsed.break_end;
-    const breakStart = useRange ? parsed.break_start! : null;
-    const breakEnd = useRange ? parsed.break_end! : null;
+    const useRange = breaksOn && breakMode === "range" && parsedBreakStart && parsedBreakEnd;
+    const breakStart = useRange ? parsedBreakStart : null;
+    const breakEnd = useRange ? parsedBreakEnd : null;
     const breakMins = breaksOn && !useRange ? parsed.break_minutes : 0;
 
     // Validation the database also enforces, surfaced early for a better UX.
@@ -205,8 +312,8 @@ export function EntryDialog({
     }
     const candidate = {
       entry_date: parsed.entry_date,
-      start_time: parsed.start_time,
-      end_time: parsed.end_time,
+      start_time: startTime,
+      end_time: endTime,
       break_minutes: breakMins,
       break_start: breakStart,
       break_end: breakEnd,
@@ -214,7 +321,7 @@ export function EntryDialog({
     if (breakHours(candidate) * 60 >= totalHours(candidate) * 60) {
       return toast.error("Break must be shorter than the total duration");
     }
-    const range = minuteRange(parsed.start_time, parsed.end_time);
+    const range = minuteRange(startTime, endTime);
     const sameDay = allEntries.filter(
       (item) =>
         item.id !== entry?.id &&
@@ -239,8 +346,8 @@ export function EntryDialog({
         workspace_id: workspace.id,
         user_id: entry?.user_id ?? user.id,
         entry_date: parsed.entry_date,
-        start_time: parsed.start_time,
-        end_time: parsed.end_time,
+        start_time: startTime,
+        end_time: endTime,
         break_minutes: breakMins,
         break_start: breakStart,
         break_end: breakEnd,
@@ -292,7 +399,7 @@ export function EntryDialog({
                   <FormItem>
                     <FormLabel>Date</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <DateSelectField value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -329,7 +436,12 @@ export function EntryDialog({
                   <FormItem>
                     <FormLabel>Start</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} />
+                      <TimeSelectField
+                        value={field.value}
+                        onChange={field.onChange}
+                        format={timeFormat}
+                        ariaLabel="Start time"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -342,7 +454,12 @@ export function EntryDialog({
                   <FormItem>
                     <FormLabel>End (may cross midnight)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} />
+                      <TimeSelectField
+                        value={field.value}
+                        onChange={field.onChange}
+                        format={timeFormat}
+                        ariaLabel="End time"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -382,7 +499,12 @@ export function EntryDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <Input type="time" {...field} />
+                            <TimeSelectField
+                              value={field.value ?? ""}
+                              onChange={field.onChange}
+                              format={timeFormat}
+                              ariaLabel="Break start time"
+                            />
                           </FormControl>
                         </FormItem>
                       )}
@@ -393,7 +515,12 @@ export function EntryDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <Input type="time" {...field} />
+                            <TimeSelectField
+                              value={field.value ?? ""}
+                              onChange={field.onChange}
+                              format={timeFormat}
+                              ariaLabel="Break end time"
+                            />
                           </FormControl>
                         </FormItem>
                       )}
@@ -560,6 +687,233 @@ function Calc({ label, value, accent }: { label: string; value: string; accent?:
     <div className="flex flex-col">
       <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
       <span className={accent ? "text-primary" : undefined}>{value}</span>
+    </div>
+  );
+}
+
+function DateSelectField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const activeDate = value ? new Date(`${value}T00:00:00`) : new Date();
+  const [viewYear, setViewYear] = useState(activeDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState(activeDate.getMonth());
+  const cells = buildMonthGrid(viewYear, viewMonth);
+  const today = todayKey();
+
+  useEffect(() => {
+    if (!open || !value) return;
+    const next = new Date(`${value}T00:00:00`);
+    setViewYear(next.getFullYear());
+    setViewMonth(next.getMonth());
+  }, [open, value]);
+
+  function stepMonth(direction: -1 | 1) {
+    const next = new Date(viewYear, viewMonth + direction, 1);
+    setViewYear(next.getFullYear());
+    setViewMonth(next.getMonth());
+  }
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Entry date"
+          className="flex h-10 w-full items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-3 text-left shadow-sm transition-colors hover:bg-muted/30"
+        >
+          <span className="truncate font-medium">{formatDateLong(value)}</span>
+          <CalendarDays className="size-4 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-[308px] rounded-xl border-border/70 p-3" align="start">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <Button type="button" variant="ghost" size="icon" onClick={() => stepMonth(-1)}>
+              <ChevronLeft className="size-4" />
+            </Button>
+            <div className="text-sm font-semibold">
+              {MONTH_NAMES[viewMonth]} {viewYear}
+            </div>
+            <Button type="button" variant="ghost" size="icon" onClick={() => stepMonth(1)}>
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {WEEKDAY_LABELS.map((label, index) => (
+              <span
+                key={`${label}-${index}`}
+                className="pb-1 text-center text-[10px] font-medium text-muted-foreground"
+              >
+                {label}
+              </span>
+            ))}
+            {cells.map((cell, index) =>
+              cell ? (
+                <button
+                  key={cell.dateKey}
+                  type="button"
+                  onClick={() => {
+                    onChange(cell.dateKey);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "relative flex aspect-square w-full items-center justify-center rounded-md text-[11px] font-medium tabular-nums transition-colors",
+                    cell.dateKey === value
+                      ? "bg-primary text-primary-foreground"
+                      : cell.dateKey === today
+                        ? "bg-accent text-accent-foreground ring-1 ring-primary"
+                        : "hover:bg-accent hover:text-accent-foreground",
+                  )}
+                >
+                  {cell.day}
+                </button>
+              ) : (
+                <span key={`date-pad-${index}`} className="aspect-square" aria-hidden />
+              ),
+            )}
+          </div>
+
+          <div className="flex justify-between gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const current = todayKey();
+                onChange(current);
+                const next = new Date(`${current}T00:00:00`);
+                setViewYear(next.getFullYear());
+                setViewMonth(next.getMonth());
+              }}
+            >
+              Today
+            </Button>
+            <Button type="button" size="sm" onClick={() => setOpen(false)}>
+              Done
+            </Button>
+          </div>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function TimeSelectField({
+  value,
+  onChange,
+  format,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  format: TimeFormat;
+  ariaLabel: string;
+}) {
+  const parts = decomposeTimeValue(value, format);
+  const hourOptions = format === "12h" ? HOUR_12_OPTIONS : HOUR_24_OPTIONS;
+  const [open, setOpen] = useState(false);
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={ariaLabel}
+          className="flex h-10 w-full items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-3 text-left shadow-sm transition-colors hover:bg-muted/30"
+        >
+          <span className="font-medium tabular-nums">{value}</span>
+          <ChevronDown className="size-4 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-[280px] rounded-xl border-border/70 p-3" align="start">
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-medium">{ariaLabel}</p>
+            <p className="text-xs text-muted-foreground">Choose the full time in one place.</p>
+          </div>
+
+          <div className={`grid gap-3 ${format === "12h" ? "grid-cols-3" : "grid-cols-2"}`}>
+            <PickerColumn
+              label="Hour"
+              options={hourOptions}
+              selected={parts.hour}
+              onSelect={(hour) =>
+                onChange(composeTimeValue(hour, parts.minute, parts.period, format))
+              }
+            />
+            <PickerColumn
+              label="Minute"
+              options={MINUTE_OPTIONS}
+              selected={parts.minute}
+              onSelect={(minute) =>
+                onChange(composeTimeValue(parts.hour, minute, parts.period, format))
+              }
+            />
+            {format === "12h" ? (
+              <PickerColumn
+                label="Period"
+                options={["AM", "PM"]}
+                selected={parts.period}
+                onSelect={(period) =>
+                  onChange(
+                    composeTimeValue(parts.hour, parts.minute, period as "AM" | "PM", format),
+                  )
+                }
+              />
+            ) : null}
+          </div>
+
+          <div className="flex justify-end">
+            <Button type="button" size="sm" onClick={() => setOpen(false)}>
+              Done
+            </Button>
+          </div>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function PickerColumn({
+  label,
+  options,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  options: string[];
+  selected: string;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="time-picker-scroll max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border/60 bg-background/70 p-1">
+        {options.map((option) => {
+          const active = option === selected;
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onSelect(option)}
+              className={cn(
+                "flex w-full items-center justify-center rounded-md px-2 py-2 text-sm font-medium transition-colors",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground hover:bg-accent hover:text-accent-foreground",
+              )}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

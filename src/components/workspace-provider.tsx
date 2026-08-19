@@ -34,6 +34,23 @@ export function WorkspaceProvider({ user, children }: { user: User; children: Re
     setActiveId(localStorage.getItem(STORAGE_KEY));
   }, []);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel("workspace-live-updates")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "workspaces" },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   // Every user needs at least one workspace to record time against.
   useEffect(() => {
     if (isLoading || creating || workspaces.length > 0) return;
@@ -87,7 +104,7 @@ export function useWorkspace() {
  * Role capability helpers shared by every screen.
  * Managers have no fixed rights — their capabilities come from granted permissions.
  */
-export function can(role: Role | null, permissions: string[] = []) {
+export function can(role: Role | null, permissions: string[] = [], workspace: Workspace | null = null) {
   const fixedAdmin = role === "owner" || role === "admin";
   const isManager = role === "manager";
   const granted = (key: string) => fixedAdmin || (isManager && permissions.includes(key));
@@ -95,6 +112,14 @@ export function can(role: Role | null, permissions: string[] = []) {
   const removeMembers = granted("users.remove");
   const changeRoles = granted("users.change_role");
   const assignManagerRole = granted("users.assign_manager_role");
+  const managerRatesAllowed = workspace?.allow_manager_rate_permissions === true;
+  const memberRatesEnabled = workspace?.enable_member_rates !== false;
+  const viewMemberRates =
+    memberRatesEnabled &&
+    (fixedAdmin || (isManager && managerRatesAllowed && permissions.includes("money.view_member_rates")));
+  const editMemberRates =
+    memberRatesEnabled &&
+    (fixedAdmin || (isManager && managerRatesAllowed && permissions.includes("money.edit_member_rates")));
   return {
     edit:
       fixedAdmin ||
@@ -108,6 +133,8 @@ export function can(role: Role | null, permissions: string[] = []) {
     removeMembers,
     changeRoles,
     assignManagerRole,
+    viewMemberRates,
+    editMemberRates,
     /** Any member-management capability at all — drives navigation visibility. */
     manageMembers: inviteMembers || removeMembers || changeRoles,
     manageRoles: fixedAdmin,

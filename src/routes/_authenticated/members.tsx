@@ -14,7 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useWorkspaceMembers } from "@/lib/data";
+import { Label } from "@/components/ui/label";
+import { MemberRateHistoryDrawer } from "@/components/member-rate-history-drawer";
+import { useUpdateMemberRates, useWorkspaceMembers, type Member } from "@/lib/data";
+import { formatRate } from "@/lib/calendar";
 import { useMemberMutations, useRoleMutations, useWorkspaceRoles } from "@/lib/rbac";
 
 type MemberRole = "owner" | "admin" | "manager" | "member" | "viewer";
@@ -68,15 +71,21 @@ export const Route = createFileRoute("/_authenticated/members")({
 function MembersPage() {
   const { workspace, role, user, permissions: myPermissions } = useWorkspace();
   const { data: members = [], isLoading } = useWorkspaceMembers(workspace?.id);
+  const updateMemberRates = useUpdateMemberRates(workspace?.id);
   const { data: customRoles = [] } = useWorkspaceRoles(workspace?.id);
   const { assignMember } = useRoleMutations(workspace?.id);
   const { add, remove } = useMemberMutations(workspace?.id);
-  const permissions = can(role, myPermissions);
+  const permissions = can(role, myPermissions, workspace);
   const inviteableRoles = useMemo(() => allowedAssignableRoles(role, permissions), [role, permissions]);
+  const currency = workspace?.currency ?? "USD";
+  const [historyMember, setHistoryMember] = useState<(Member & { profile: { full_name: string | null; email: string | null } | null }) | null>(null);
 
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<InviteRole>(inviteableRoles[0] ?? "member");
   const [inviteCustomRoleId, setInviteCustomRoleId] = useState<string | null>(null);
+  const [rateDrafts, setRateDrafts] = useState<
+    Record<string, { hourlyRate: string; overtimeHourlyRate: string }>
+  >({});
 
   useEffect(() => {
     if (!inviteableRoles.includes(inviteRole)) {
@@ -84,6 +93,20 @@ function MembersPage() {
       setInviteCustomRoleId(null);
     }
   }, [inviteRole, inviteableRoles]);
+
+  useEffect(() => {
+    setRateDrafts((current) => {
+      const next: Record<string, { hourlyRate: string; overtimeHourlyRate: string }> = {};
+      for (const member of members) {
+        next[member.id] = current[member.id] ?? {
+          hourlyRate: member.hourly_rate === null ? "" : String(member.hourly_rate),
+          overtimeHourlyRate:
+            member.overtime_hourly_rate === null ? "" : String(member.overtime_hourly_rate),
+        };
+      }
+      return next;
+    });
+  }, [members]);
 
   function editableRolesForMember(memberRole: MemberRole): MemberRole[] {
     if (role === "owner") return ["owner", "admin", "manager", "member", "viewer"];
@@ -144,6 +167,41 @@ function MembersPage() {
       onSuccess: () => toast.success("Access revoked", { id: toastId }),
       onError: () => toast.error("You do not have permission to remove this member", { id: toastId }),
     });
+  }
+
+  function setRateDraft(memberId: string, field: "hourlyRate" | "overtimeHourlyRate", value: string) {
+    setRateDrafts((current) => ({
+      ...current,
+      [memberId]: {
+        hourlyRate: current[memberId]?.hourlyRate ?? "",
+        overtimeHourlyRate: current[memberId]?.overtimeHourlyRate ?? "",
+        [field]: value,
+      },
+    }));
+  }
+
+  function saveRates(member: (typeof members)[number]) {
+    const draft = rateDrafts[member.id] ?? { hourlyRate: "", overtimeHourlyRate: "" };
+    const hourlyRate = draft.hourlyRate.trim() === "" ? null : Number(draft.hourlyRate);
+    const overtimeHourlyRate =
+      draft.overtimeHourlyRate.trim() === "" ? null : Number(draft.overtimeHourlyRate);
+
+    if (
+      (hourlyRate !== null && Number.isNaN(hourlyRate)) ||
+      (overtimeHourlyRate !== null && Number.isNaN(overtimeHourlyRate))
+    ) {
+      toast.error("Enter valid rates before saving");
+      return;
+    }
+
+    const toastId = toast.loading("Saving rates...");
+    updateMemberRates.mutate(
+      { memberId: member.id, hourlyRate, overtimeHourlyRate },
+      {
+        onSuccess: () => toast.success("Rates updated", { id: toastId }),
+        onError: () => toast.error("Could not update member rates", { id: toastId }),
+      },
+    );
   }
 
   return (
@@ -242,6 +300,23 @@ function MembersPage() {
                 permissions.removeMembers &&
                 member.user_id !== user?.id &&
                 canManageTargetRole(role, member.role, permissions);
+              const canViewRates =
+                permissions.viewMemberRates &&
+                member.user_id !== user?.id &&
+                canManageTargetRole(role, member.role, permissions);
+              const canEditRates =
+                permissions.editMemberRates &&
+                member.user_id !== user?.id &&
+                canManageTargetRole(role, member.role, permissions);
+              const rateDraft = rateDrafts[member.id] ?? {
+                hourlyRate: member.hourly_rate === null ? "" : String(member.hourly_rate),
+                overtimeHourlyRate:
+                  member.overtime_hourly_rate === null ? "" : String(member.overtime_hourly_rate),
+              };
+              const hasRateChanges =
+                rateDraft.hourlyRate !== (member.hourly_rate === null ? "" : String(member.hourly_rate)) ||
+                rateDraft.overtimeHourlyRate !==
+                  (member.overtime_hourly_rate === null ? "" : String(member.overtime_hourly_rate));
               return (
                 <div key={member.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
@@ -313,12 +388,103 @@ function MembersPage() {
                       Revoke
                     </Button>
                   ) : null}
+                  {canViewRates ? (
+                    <div className="grid w-full gap-3 rounded-lg border border-border/60 bg-muted/10 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Normal hourly rate</Label>
+                        {canEditRates ? (
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            className="pr-3 tabular-nums"
+                            placeholder={`Default: ${workspace?.hourly_rate ?? 0}`}
+                            value={rateDraft.hourlyRate}
+                            onChange={(event) =>
+                              setRateDraft(member.id, "hourlyRate", event.target.value)
+                            }
+                          />
+                        ) : (
+                          <p className="text-sm font-medium tabular-nums">
+                            {member.hourly_rate === null
+                              ? `Default: ${formatRate(Number(workspace?.hourly_rate ?? 0), currency)}`
+                              : formatRate(Number(member.hourly_rate), currency)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Overtime hourly rate</Label>
+                        {canEditRates ? (
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            className="pr-3 tabular-nums"
+                            placeholder={`Default: ${workspace?.overtime_hourly_rate ?? 0}`}
+                            value={rateDraft.overtimeHourlyRate}
+                            onChange={(event) =>
+                              setRateDraft(member.id, "overtimeHourlyRate", event.target.value)
+                            }
+                          />
+                        ) : (
+                          <p className="text-sm font-medium tabular-nums">
+                            {member.overtime_hourly_rate === null
+                              ? `Default: ${formatRate(Number(workspace?.overtime_hourly_rate ?? 0), currency)}`
+                              : formatRate(Number(member.overtime_hourly_rate), currency)}
+                          </p>
+                        )}
+                      </div>
+                      {canEditRates ? (
+                        <div className="flex items-end lg:justify-end">
+                          <div className="flex w-full gap-2 lg:w-auto">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full lg:w-auto"
+                              onClick={() => setHistoryMember(member)}
+                            >
+                              History
+                            </Button>
+                            <Button
+                              className="w-full lg:w-auto"
+                              onClick={() => saveRates(member)}
+                              disabled={updateMemberRates.isPending || !hasRateChanges}
+                            >
+                              Save rates
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-end lg:justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full lg:w-auto"
+                            onClick={() => setHistoryMember(member)}
+                          >
+                            History
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               );
             })
           )}
         </CardContent>
       </Card>
+
+      <MemberRateHistoryDrawer
+        member={historyMember}
+        currency={currency}
+        onOpenChange={(open) => {
+          if (!open) setHistoryMember(null);
+        }}
+        nameFor={(userId) =>
+          members.find((member) => member.user_id === userId)?.profile?.full_name ||
+          members.find((member) => member.user_id === userId)?.profile?.email ||
+          "Member"
+        }
+      />
     </div>
   );
 }

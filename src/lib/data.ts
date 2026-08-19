@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { updateMemberRates } from "@/lib/members.functions";
 
 export type Workspace = Tables<"workspaces">;
 export type Member = Tables<"workspace_members">;
 export type Entry = Tables<"overtime_entries">;
 export type Profile = Tables<"profiles">;
 export type HistoryRecord = Tables<"entry_history">;
+export type MemberRateHistoryRecord = Tables<"member_rate_history">;
 export type EntryStatus = Entry["status"];
 
 export const ATTACHMENT_BUCKET = "entry-attachments";
@@ -189,6 +192,22 @@ export function useSaveEntry(workspaceId: string | undefined) {
   });
 }
 
+export function useMemberRateHistory(memberId: string | undefined) {
+  return useQuery({
+    queryKey: ["member-rate-history", memberId],
+    enabled: Boolean(memberId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("member_rate_history")
+        .select("*")
+        .eq("member_id", memberId!)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export function useDeleteEntry(workspaceId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -362,6 +381,44 @@ export function useUpdateWorkspace(workspaceId: string | undefined) {
       }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
+  });
+}
+
+export function useUpdateMemberRates(workspaceId: string | undefined) {
+  const queryClient = useQueryClient();
+  const updateRates = useServerFn(updateMemberRates);
+  return useMutation({
+    mutationFn: async (input: {
+      memberId: string;
+      hourlyRate: number | null;
+      overtimeHourlyRate: number | null;
+    }) => updateRates({ data: input }),
+    onMutate: async (input) => {
+      const queryKey = ["members", workspaceId] as const;
+      await queryClient.cancelQueries({ queryKey });
+      const previousMembers = queryClient.getQueryData<(Member & { profile: Profile | null })[]>(queryKey);
+      if (previousMembers) {
+        queryClient.setQueryData(
+          queryKey,
+          previousMembers.map((member) =>
+            member.id === input.memberId
+              ? {
+                  ...member,
+                  hourly_rate: input.hourlyRate,
+                  overtime_hourly_rate: input.overtimeHourlyRate,
+                }
+              : member,
+          ),
+        );
+      }
+      return { previousMembers };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previousMembers) {
+        queryClient.setQueryData(["members", workspaceId], context.previousMembers);
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["members", workspaceId] }),
   });
 }
 

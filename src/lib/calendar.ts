@@ -123,10 +123,11 @@ export type EarningRates = { hourly: number; overtime: number };
 export function dayEarnings(
   entries: Entry[],
   standard: number | null,
-  rates: EarningRates,
+  resolveRates: (entry: Entry) => EarningRates,
 ): number {
   return round2(
     entries.reduce((total, entry) => {
+      const rates = resolveRates(entry);
       const ot = overtimeHours(entry, standard);
       const base = Math.max(0, workedHours(entry) - ot);
       return total + base * rates.hourly + ot * rates.overtime;
@@ -138,7 +139,7 @@ export function dayEarnings(
 export function summarizeByDay(
   entries: Entry[],
   standard: number | null,
-  rates: EarningRates,
+  resolveRates: (entry: Entry) => EarningRates,
 ): Map<string, DaySummary> {
   const grouped = new Map<string, Entry[]>();
   for (const entry of entries) {
@@ -156,7 +157,7 @@ export function summarizeByDay(
       worked: round2(dayEntries.reduce((sum, entry) => sum + workedHours(entry), 0)),
       breaks: round2(dayEntries.reduce((sum, entry) => sum + breakHours(entry), 0)),
       overtime: round2(dayEntries.reduce((sum, entry) => sum + overtimeHours(entry, standard), 0)),
-      earnings: dayEarnings(dayEntries, standard, rates),
+      earnings: dayEarnings(dayEntries, standard, resolveRates),
       statuses,
       primary,
       weekend: isWeekend(dateKey),
@@ -175,6 +176,10 @@ export function formatMoney(amount: number, currency: string): string {
   } catch {
     return `${currency} ${amount.toFixed(2)}`;
   }
+}
+
+export function formatRate(amount: number, currency: string): string {
+  return `${formatMoney(amount, currency)}/hr`;
 }
 
 export function yearOptions(current: number): number[] {

@@ -44,6 +44,8 @@ export const MONEY_PERMISSIONS = [
   "money.salary",
   "money.overtime_amount",
   "money.earnings",
+  "money.view_member_rates",
+  "money.edit_member_rates",
   "money.payout_history",
   "money.export_payroll",
 ] as const;
