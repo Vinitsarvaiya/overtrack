@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Copy, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -59,12 +59,59 @@ function RolesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [renameValue, setRenameValue] = useState("");
+  const [draftPermissions, setDraftPermissions] = useState<string[]>([]);
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false);
+  const [draftRoleId, setDraftRoleId] = useState<string | null>(null);
 
   const selected = roles.find((item) => item.id === selectedId) ?? roles[0] ?? null;
+  const granted = selected ? (grants[selected.id] ?? []) : [];
+  const groups = groupPermissions(catalog);
+  const grantedKey = useMemo(() => [...granted].sort().join("|"), [granted]);
+  const draftKey = useMemo(() => [...draftPermissions].sort().join("|"), [draftPermissions]);
+  const hasPermissionChanges = grantedKey !== draftKey;
 
   useEffect(() => {
     if (selected) setRenameValue(selected.name);
   }, [selected?.id, selected?.name]);
+
+  useEffect(() => {
+    if (!selectedId && roles.length > 0) {
+      setSelectedId(roles[0].id);
+    }
+  }, [roles, selectedId]);
+
+  useEffect(() => {
+    if (!selected) {
+      setDraftPermissions([]);
+      setDraftRoleId(null);
+      return;
+    }
+
+    if (draftRoleId !== selected.id) {
+      setDraftPermissions(granted);
+      setDraftRoleId(selected.id);
+      return;
+    }
+
+    if (!hasPermissionChanges && !isSavingPermissions && draftKey !== grantedKey) {
+      setDraftPermissions(granted);
+    }
+  }, [
+    draftKey,
+    draftRoleId,
+    granted,
+    grantedKey,
+    hasPermissionChanges,
+    isSavingPermissions,
+    selected,
+  ]);
+
+  function handleSelectRole(roleId: string) {
+    const nextGranted = grants[roleId] ?? [];
+    setSelectedId(roleId);
+    setDraftRoleId(roleId);
+    setDraftPermissions(nextGranted);
+  }
 
   if (!capabilities.manageRoles) {
     return (
@@ -81,9 +128,6 @@ function RolesPage() {
     );
   }
 
-  const granted = selected ? (grants[selected.id] ?? []) : [];
-  const groups = groupPermissions(catalog);
-
   async function handleCreate() {
     const name = newName.trim();
     if (name.length < 2) return;
@@ -97,12 +141,44 @@ function RolesPage() {
     }
   }
 
-  async function handleToggle(permissionKey: string, enabled: boolean) {
-    if (!selected) return;
+  function handleToggle(permissionKey: string, enabled: boolean) {
+    setDraftPermissions((current) => {
+      if (enabled) {
+        return current.includes(permissionKey) ? current : [...current, permissionKey];
+      }
+      return current.filter((key) => key !== permissionKey);
+    });
+  }
+
+  async function handleSavePermissions() {
+    if (!selected || !hasPermissionChanges || isSavingPermissions) return;
+
+    const updates = catalog
+      .filter((permission) => granted.includes(permission.key) !== draftPermissions.includes(permission.key))
+      .map((permission) => ({
+        permissionKey: permission.key,
+        enabled: draftPermissions.includes(permission.key),
+      }));
+
+    if (updates.length === 0) return;
+
+    setIsSavingPermissions(true);
     try {
-      await mutations.toggle.mutateAsync({ roleId: selected.id, permissionKey, enabled });
+      await Promise.all(
+        updates.map((update) =>
+          mutations.toggle.mutateAsync({
+            roleId: selected.id,
+            permissionKey: update.permissionKey,
+            enabled: update.enabled,
+          }),
+        ),
+      );
+      toast.success("Role permissions saved");
     } catch {
-      toast.error("You do not have permission to change this");
+      setDraftPermissions(granted);
+      toast.error("Could not save role permissions");
+    } finally {
+      setIsSavingPermissions(false);
     }
   }
 
@@ -158,7 +234,7 @@ function RolesPage() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setSelectedId(item.id)}
+                    onClick={() => handleSelectRole(item.id)}
                     aria-current={selected?.id === item.id}
                     className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors ${
                       selected?.id === item.id
@@ -250,10 +326,32 @@ function RolesPage() {
                 </AlertDialog>
               </div>
               <CardDescription>
-                {granted.length} of {catalog.length} permissions enabled.
+                {draftPermissions.length} of {catalog.length} permissions enabled.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+                <p className="text-sm text-muted-foreground">
+                  Permission changes stay local until you save them.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDraftPermissions(granted)}
+                    disabled={!hasPermissionChanges || isSavingPermissions}
+                  >
+                    Discard
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => void handleSavePermissions()}
+                    disabled={!hasPermissionChanges || isSavingPermissions}
+                  >
+                    {isSavingPermissions ? "Saving..." : "Save changes"}
+                  </Button>
+                </div>
+              </div>
               {catalogLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : (
@@ -264,7 +362,7 @@ function RolesPage() {
                     </h2>
                     <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
                       {group.items.map((permission) => {
-                        const enabled = granted.includes(permission.key);
+                        const enabled = draftPermissions.includes(permission.key);
                         return (
                           <div
                             key={permission.key}

@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import type { PermissionRow } from "@/lib/permissions";
 import { addMember, createWorkplace, removeMember } from "@/lib/members.functions";
+import type { Member, Profile } from "@/lib/data";
 import {
   assignMemberRole,
   createRole,
@@ -20,6 +21,8 @@ export type WorkspaceRole = {
   description: string | null;
   created_at: string;
 };
+
+type WorkspaceMemberWithProfile = Member & { profile: Profile | null };
 
 /** Full permission catalog (read-only reference data). */
 export function usePermissionCatalog() {
@@ -104,6 +107,7 @@ function useRoleInvalidation(workspaceId: string | undefined) {
 }
 
 export function useRoleMutations(workspaceId: string | undefined) {
+  const queryClient = useQueryClient();
   const invalidate = useRoleInvalidation(workspaceId);
   const create = useServerFn(createRole);
   const rename = useServerFn(renameRole);
@@ -132,9 +136,42 @@ export function useRoleMutations(workspaceId: string | undefined) {
       onSuccess: invalidate,
     }),
     toggle: useMutation({
+      mutationKey: ["toggle-role-permission", workspaceId],
       mutationFn: (input: { roleId: string; permissionKey: string; enabled: boolean }) =>
         toggle({ data: input }),
-      onSuccess: invalidate,
+      onMutate: async (input) => {
+        const queryKey = ["role-permissions", workspaceId] as const;
+        await queryClient.cancelQueries({ queryKey });
+        const previousPermissions =
+          queryClient.getQueryData<Record<string, string[]>>(queryKey);
+
+        if (previousPermissions) {
+          const current = previousPermissions[input.roleId] ?? [];
+          const next = input.enabled
+            ? Array.from(new Set([...current, input.permissionKey]))
+            : current.filter((key) => key !== input.permissionKey);
+
+          queryClient.setQueryData<Record<string, string[]>>(queryKey, {
+            ...previousPermissions,
+            [input.roleId]: next,
+          });
+        }
+
+        return { previousPermissions };
+      },
+      onError: (_error, _input, context) => {
+        if (context?.previousPermissions) {
+          queryClient.setQueryData(["role-permissions", workspaceId], context.previousPermissions);
+        }
+      },
+      onSettled: async () => {
+        const stillMutating = queryClient.isMutating({
+          mutationKey: ["toggle-role-permission", workspaceId],
+        });
+        if (stillMutating === 1) {
+          await invalidate();
+        }
+      },
     }),
     assignMember: useMutation({
       mutationFn: (input: {
@@ -142,6 +179,31 @@ export function useRoleMutations(workspaceId: string | undefined) {
         role: "owner" | "admin" | "manager" | "member" | "viewer";
         customRoleId?: string | null;
       }) => assign({ data: input }),
+      onMutate: async (input) => {
+        const queryKey = ["members", workspaceId] as const;
+        await queryClient.cancelQueries({ queryKey });
+        const previousMembers = queryClient.getQueryData<WorkspaceMemberWithProfile[]>(queryKey);
+        if (previousMembers) {
+          queryClient.setQueryData<WorkspaceMemberWithProfile[]>(
+            queryKey,
+            previousMembers.map((member) =>
+              member.id === input.memberId
+                ? {
+                    ...member,
+                    role: input.role,
+                    custom_role_id: input.role === "manager" ? (input.customRoleId ?? null) : null,
+                  }
+                : member,
+            ),
+          );
+        }
+        return { previousMembers };
+      },
+      onError: (_error, _input, context) => {
+        if (context?.previousMembers) {
+          queryClient.setQueryData(["members", workspaceId], context.previousMembers);
+        }
+      },
       onSuccess: invalidate,
     }),
   };
@@ -167,6 +229,23 @@ export function useMemberMutations(workspaceId: string | undefined) {
     }),
     remove: useMutation({
       mutationFn: (memberId: string) => remove({ data: { memberId } }),
+      onMutate: async (memberId) => {
+        const queryKey = ["members", workspaceId] as const;
+        await queryClient.cancelQueries({ queryKey });
+        const previousMembers = queryClient.getQueryData<WorkspaceMemberWithProfile[]>(queryKey);
+        if (previousMembers) {
+          queryClient.setQueryData<WorkspaceMemberWithProfile[]>(
+            queryKey,
+            previousMembers.filter((member) => member.id !== memberId),
+          );
+        }
+        return { previousMembers };
+      },
+      onError: (_error, _memberId, context) => {
+        if (context?.previousMembers) {
+          queryClient.setQueryData(["members", workspaceId], context.previousMembers);
+        }
+      },
       onSuccess: invalidate,
     }),
   };

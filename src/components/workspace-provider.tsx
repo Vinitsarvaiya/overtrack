@@ -94,14 +94,20 @@ export function can(role: Role | null, permissions: string[] = []) {
   const inviteMembers = granted("users.invite");
   const removeMembers = granted("users.remove");
   const changeRoles = granted("users.change_role");
+  const assignManagerRole = granted("users.assign_manager_role");
   return {
-    edit: fixedAdmin || role === "member" || granted("attendance.edit"),
+    edit:
+      fixedAdmin ||
+      role === "member" ||
+      granted("attendance.add") ||
+      granted("attendance.edit"),
     manageAll: granted("attendance.edit"),
     approve: granted("overtime.approve"),
     reject: granted("overtime.reject"),
     inviteMembers,
     removeMembers,
     changeRoles,
+    assignManagerRole,
     /** Any member-management capability at all — drives navigation visibility. */
     manageMembers: inviteMembers || removeMembers || changeRoles,
     manageRoles: fixedAdmin,

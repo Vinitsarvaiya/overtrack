@@ -20,6 +20,29 @@ export const addMember = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertPermission(context.supabase, data.workspaceId, context.userId, "users.invite");
 
+    const { data: caller } = await supabaseAdmin
+      .from("workspace_members")
+      .select("role")
+      .eq("workspace_id", data.workspaceId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    if (caller?.role === "admin" && data.role === "admin") {
+      return { ok: false as const, reason: "forbidden_role" as const };
+    }
+
+    if (caller?.role === "manager") {
+      const { data: canAssignManager } = await context.supabase.rpc("has_permission", {
+        _workspace_id: data.workspaceId,
+        _user_id: context.userId,
+        _permission: "users.assign_manager_role",
+      });
+      const allowedRoles = canAssignManager ? ["manager", "member", "viewer"] : ["member", "viewer"];
+      if (!allowedRoles.includes(data.role)) {
+        return { ok: false as const, reason: "forbidden_role" as const };
+      }
+    }
+
     const email = data.email.trim().toLowerCase();
     const { data: profile } = await supabaseAdmin
       .from("profiles")

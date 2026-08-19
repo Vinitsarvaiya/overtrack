@@ -148,15 +148,30 @@ export const assignMemberRole = createServerFn({ method: "POST" })
     if (!member) throw forbidden();
     await assertPermission(context.supabase, member.workspace_id, context.userId, "users.change_role");
 
+    const { data: caller } = await supabaseAdmin
+      .from("workspace_members")
+      .select("role")
+      .eq("workspace_id", member.workspace_id)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
     // Only an owner may grant or revoke ownership.
     if (data.role === "owner" || member.role === "owner") {
-      const { data: caller } = await supabaseAdmin
-        .from("workspace_members")
-        .select("role")
-        .eq("workspace_id", member.workspace_id)
-        .eq("user_id", context.userId)
-        .maybeSingle();
       if (caller?.role !== "owner") throw forbidden();
+    }
+
+    if (caller?.role === "admin" && (data.role === "admin" || member.role === "admin")) {
+      throw forbidden();
+    }
+
+    if (caller?.role === "manager") {
+      if (data.role === "admin" || data.role === "owner") throw forbidden();
+      const { data: canAssignManager } = await context.supabase.rpc("has_permission", {
+        _workspace_id: member.workspace_id,
+        _user_id: context.userId,
+        _permission: "users.assign_manager_role",
+      });
+      if (data.role === "manager" && !canAssignManager) throw forbidden();
     }
 
     // Elevated write: RLS restricts member updates to owners/admins, but a

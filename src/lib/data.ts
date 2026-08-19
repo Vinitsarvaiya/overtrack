@@ -140,6 +140,51 @@ export function useSaveEntry(workspaceId: string | undefined) {
       const { error } = await query;
       if (error) throw error;
     },
+    onMutate: async (input) => {
+      const queryKey = ["entries", workspaceId] as const;
+      await queryClient.cancelQueries({ queryKey });
+      const previousEntries = queryClient.getQueryData<Entry[]>(queryKey);
+      if (previousEntries) {
+        const optimisticEntry: Entry = {
+          id: input.id ?? `optimistic-${crypto.randomUUID()}`,
+          workspace_id: input.workspace_id,
+          user_id: input.user_id,
+          entry_date: input.entry_date,
+          start_time: input.start_time,
+          end_time: input.end_time,
+          break_minutes: input.break_minutes,
+          break_start: input.break_start,
+          break_end: input.break_end,
+          category: input.category,
+          tags: input.tags,
+          notes: input.notes,
+          overtime_override: input.overtime_override,
+          attachment_path: input.attachment_path,
+          attachment_name: input.attachment_name,
+          status: input.status ?? "draft",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          submitted_at: null,
+          approved_at: null,
+          approved_by: null,
+          rejection_reason: null,
+          locked: false,
+        };
+
+        queryClient.setQueryData<Entry[]>(
+          queryKey,
+          input.id
+            ? previousEntries.map((entry) => (entry.id === input.id ? { ...entry, ...optimisticEntry } : entry))
+            : [optimisticEntry, ...previousEntries],
+        );
+      }
+      return { previousEntries };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previousEntries) {
+        queryClient.setQueryData(["entries", workspaceId], context.previousEntries);
+      }
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["entries", workspaceId] }),
   });
 }
@@ -150,6 +195,23 @@ export function useDeleteEntry(workspaceId: string | undefined) {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("overtime_entries").delete().eq("id", id);
       if (error) throw error;
+    },
+    onMutate: async (id) => {
+      const queryKey = ["entries", workspaceId] as const;
+      await queryClient.cancelQueries({ queryKey });
+      const previousEntries = queryClient.getQueryData<Entry[]>(queryKey);
+      if (previousEntries) {
+        queryClient.setQueryData<Entry[]>(
+          queryKey,
+          previousEntries.filter((entry) => entry.id !== id),
+        );
+      }
+      return { previousEntries };
+    },
+    onError: (_error, _id, context) => {
+      if (context?.previousEntries) {
+        queryClient.setQueryData(["entries", workspaceId], context.previousEntries);
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["entries", workspaceId] }),
   });
@@ -201,6 +263,54 @@ export function useEntryWorkflow(workspace: Workspace | null) {
         .eq("id", entry.id);
       if (error) throw error;
     },
+    onMutate: async (variables) => {
+      const queryKey = ["entries", workspace?.id] as const;
+      await queryClient.cancelQueries({ queryKey });
+      const previousEntries = queryClient.getQueryData<Entry[]>(queryKey);
+      if (previousEntries) {
+        let patch: Partial<Entry> = {};
+        if (variables.action === "submit") {
+          patch = {
+            status: "submitted",
+            submitted_at: new Date().toISOString(),
+            rejection_reason: null,
+          };
+        } else if (variables.action === "approve") {
+          patch = {
+            status: "approved",
+            approved_at: new Date().toISOString(),
+            approved_by: variables.actorId,
+            locked: Boolean(workspace?.lock_after_approval),
+          };
+        } else if (variables.action === "reject") {
+          patch = {
+            status: "rejected",
+            rejection_reason: variables.reason ?? null,
+            locked: false,
+          };
+        } else {
+          patch = {
+            status: "reopened",
+            locked: false,
+            approved_at: null,
+            approved_by: null,
+          };
+        }
+
+        queryClient.setQueryData<Entry[]>(
+          queryKey,
+          previousEntries.map((entry) =>
+            entry.id === variables.entry.id ? { ...entry, ...patch } : entry,
+          ),
+        );
+      }
+      return { previousEntries };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousEntries) {
+        queryClient.setQueryData(["entries", workspace?.id], context.previousEntries);
+      }
+    },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["entries", workspace?.id] });
       queryClient.invalidateQueries({ queryKey: ["entry-history", variables.entry.id] });
@@ -229,6 +339,27 @@ export function useUpdateWorkspace(workspaceId: string | undefined) {
         .update(values)
         .eq("id", workspaceId!);
       if (error) throw error;
+    },
+    onMutate: async (values) => {
+      const queryKey = ["workspaces"] as const;
+      await queryClient.cancelQueries({ queryKey });
+      const previousWorkspaces = queryClient.getQueryData<{ role: string; workspace: Workspace }[]>(queryKey);
+      if (previousWorkspaces && workspaceId) {
+        queryClient.setQueryData(
+          queryKey,
+          previousWorkspaces.map((item) =>
+            item.workspace.id === workspaceId
+              ? { ...item, workspace: { ...item.workspace, ...values } }
+              : item,
+          ),
+        );
+      }
+      return { previousWorkspaces };
+    },
+    onError: (_error, _values, context) => {
+      if (context?.previousWorkspaces) {
+        queryClient.setQueryData(["workspaces"], context.previousWorkspaces);
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
   });
@@ -271,6 +402,44 @@ export function useSaveCalendarDay(workspaceId: string | undefined) {
         .upsert(input, { onConflict: "workspace_id,day_date" });
       if (error) throw error;
     },
+    onMutate: async (input) => {
+      const queryKey = ["calendar-days", workspaceId] as const;
+      await queryClient.cancelQueries({ queryKey });
+      const previousDays = queryClient.getQueryData<CalendarDayRow[]>(queryKey);
+      if (previousDays) {
+        const optimisticDay: CalendarDayRow = {
+          id: previousDays.find((day) => day.workspace_id === input.workspace_id && day.day_date === input.day_date)?.id
+            ?? `optimistic-${crypto.randomUUID()}`,
+          workspace_id: input.workspace_id,
+          day_date: input.day_date,
+          day_type: input.day_type,
+          hours: input.hours,
+          label: input.label,
+          created_by: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        const existing = previousDays.some(
+          (day) => day.workspace_id === input.workspace_id && day.day_date === input.day_date,
+        );
+        queryClient.setQueryData<CalendarDayRow[]>(
+          queryKey,
+          existing
+            ? previousDays.map((day) =>
+                day.workspace_id === input.workspace_id && day.day_date === input.day_date
+                  ? { ...day, ...optimisticDay }
+                  : day,
+              )
+            : [...previousDays, optimisticDay].sort((a, b) => a.day_date.localeCompare(b.day_date)),
+        );
+      }
+      return { previousDays };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previousDays) {
+        queryClient.setQueryData(["calendar-days", workspaceId], context.previousDays);
+      }
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["calendar-days", workspaceId] }),
   });
 }
@@ -281,6 +450,23 @@ export function useDeleteCalendarDay(workspaceId: string | undefined) {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("workspace_calendar_days").delete().eq("id", id);
       if (error) throw error;
+    },
+    onMutate: async (id) => {
+      const queryKey = ["calendar-days", workspaceId] as const;
+      await queryClient.cancelQueries({ queryKey });
+      const previousDays = queryClient.getQueryData<CalendarDayRow[]>(queryKey);
+      if (previousDays) {
+        queryClient.setQueryData<CalendarDayRow[]>(
+          queryKey,
+          previousDays.filter((day) => day.id !== id),
+        );
+      }
+      return { previousDays };
+    },
+    onError: (_error, _id, context) => {
+      if (context?.previousDays) {
+        queryClient.setQueryData(["calendar-days", workspaceId], context.previousDays);
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["calendar-days", workspaceId] }),
   });
