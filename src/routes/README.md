@@ -19,3 +19,8 @@ is `src/routes/__root.tsx`.
 | `__root.tsx` | app shell — wraps every page; preserve `<Outlet />` |
 
 `routeTree.gen.ts` is auto-generated. Don't edit it by hand.
+
+Authenticated screens and the sign-in screen live in
+`src/features/<feature>/components/`. Their route files retain route registration
+and metadata. Keep reusable UI, data hooks, and business helpers outside this
+directory. See [Code organization](../../docs/architecture.md).

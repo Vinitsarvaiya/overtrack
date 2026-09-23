@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MONTH_NAMES, WEEKDAY_LABELS, buildMonthGrid, formatDateLong, todayKey } from "@/lib/calendar";
+import { MONTH_NAMES, WEEKDAY_LABELS, buildMonthGrid, formatDateLong, todayKey } from "@/features/calendar/lib/calendar";
 import { cn } from "@/lib/utils";
 
 export function DatePicker({
