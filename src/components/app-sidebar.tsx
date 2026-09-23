@@ -1,8 +1,9 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import {
   CalendarClock,
   CalendarDays,
   LayoutDashboard,
+  LogOut,
   Settings,
   ShieldCheck,
   Table2,
@@ -12,6 +13,7 @@ import {
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -21,6 +23,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { can, useWorkspace } from "@/components/workspace-provider";
+import { supabase } from "@/integrations/supabase/client";
 
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, show: () => true },
@@ -48,11 +51,15 @@ const items = [
 ] as const;
 
 export function AppSidebar() {
+  const router = useRouter();
   const currentPath = useRouterState({ select: (router) => router.location.pathname });
-  const { role, permissions } = useWorkspace();
+  const { role, permissions, user } = useWorkspace();
   const capabilities = can(role, permissions);
   const visible = items.filter((item) => item.show(capabilities));
-
+  async function signOut() {
+    await supabase.auth.signOut();
+    await router.navigate({ to: "/auth" });
+  }
 
   return (
     <Sidebar collapsible="icon">
@@ -85,6 +92,22 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="border-t border-sidebar-border">
+        <span
+          className="truncate px-2 pt-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden"
+          title={user?.email}
+        >
+          {user?.email}
+        </span>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={signOut} tooltip="Sign out" aria-label="Sign out">
+              <LogOut className="size-4" />
+              <span>Sign out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }

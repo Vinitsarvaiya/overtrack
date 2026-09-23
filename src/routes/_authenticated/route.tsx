@@ -1,5 +1,5 @@
-import { createFileRoute, Outlet, redirect, useRouter } from "@tanstack/react-router";
-import { Building2, LogOut, Plus } from "lucide-react";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { Building2, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,18 +56,12 @@ function AuthenticatedLayout() {
 }
 
 function TopBar() {
-  const router = useRouter();
-  const { workspaces, workspace, role, selectWorkspace, user, permissions } = useWorkspace();
+  const { workspaces, workspace, role, selectWorkspace, permissions } = useWorkspace();
   const [open, setOpen] = useState(false);
   const [workplaceOpen, setWorkplaceOpen] = useState(false);
   const [workplaceName, setWorkplaceName] = useState("");
   const createWorkplace = useCreateWorkplace(workspace?.id);
   const capabilities = can(role, permissions);
-
-  async function signOut() {
-    await supabase.auth.signOut();
-    await router.navigate({ to: "/auth" });
-  }
 
   function submitWorkplace() {
     const name = workplaceName.trim();
@@ -116,10 +110,6 @@ function TopBar() {
             <Plus className="size-4" /> Log time
           </Button>
         ) : null}
-        <span className="hidden text-xs text-muted-foreground sm:inline">{user?.email}</span>
-        <Button size="icon" variant="ghost" onClick={signOut} aria-label="Sign out">
-          <LogOut className="size-4" />
-        </Button>
       </div>
       <EntryDialog open={open} onOpenChange={setOpen} />
       <Dialog open={workplaceOpen} onOpenChange={setWorkplaceOpen}>
